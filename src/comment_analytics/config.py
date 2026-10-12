@@ -13,10 +13,18 @@ class Settings:
     response_minutes: int = 60
     min_topic_posts: int = 10
     max_topic_entropy: float = 0.2
-    duplicate_share: float = 0.5
+    similarity_quantile: float = 0.99
     impact_quantile: float = 0.9
-    min_political_posts: int = 10
+    min_political_posts: int = 1
     political_majority: float = 0.68
+    embedding_dimensions: int = 100
+    embedding_window: int = 5
+    embedding_min_count: int = 5
+    embedding_epochs: int = 5
+    embedding_seed: int = 1
+    embedding_workers: int = 1
+    lexicon_neighbors: int = 20
+    lexicon_min_count: int = 20
 
     def __post_init__(self) -> None:
         """Reject thresholds that cannot express the documented rules."""
@@ -25,10 +33,17 @@ class Settings:
             "min_topic_posts",
             "min_political_posts",
             "temporal_posts_per_day",
+            "embedding_dimensions",
+            "embedding_window",
+            "embedding_min_count",
+            "embedding_epochs",
+            "embedding_workers",
+            "lexicon_neighbors",
+            "lexicon_min_count",
         ):
             if getattr(self, name) < 1:
                 raise ValueError(f"{name} must be positive")
-        for name in ("business_hours_share", "duplicate_share", "impact_quantile"):
+        for name in ("business_hours_share", "similarity_quantile", "impact_quantile"):
             if not 0 < getattr(self, name) <= 1:
                 raise ValueError(f"{name} must be in (0, 1]")
         if not 0.5 < self.political_majority <= 1:
@@ -37,4 +52,4 @@ class Settings:
             raise ValueError("Response time and entropy thresholds must be nonnegative")
 
 
-FLAGS = ["flag_temporal", "flag_topic", "flag_repetition", "flag_impact"]
+FLAGS = ["flag_temporal", "flag_topic", "flag_similarity", "flag_impact"]

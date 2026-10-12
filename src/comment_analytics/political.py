@@ -1,4 +1,4 @@
-"""Conservative vocabulary matching, not validated political stance inference."""
+"""Lexicon matching from the main branch, not validated political stance inference."""
 
 import re
 
@@ -6,50 +6,59 @@ import pandas as pd
 
 from comment_analytics.config import Settings
 
-LEXICON_VERSION = "exploratory-framing-v3"
-# Explicit inflections avoid both substring matches and unrestricted stem matching.
-# Ambiguous everyday terms (e.g. skilled workers, regulars' table) are not signals.
+LEXICON_VERSION = "main-crisis-v1"
+# The "crisis" lexicon of the former src/config/political_config.py, unchanged.
+# Terms match lowercase text as whole words in the listed form only; inflections
+# (e.g. "geflüchteten") do not match. Generic terms such as "menschenrechte" or
+# "obergrenze" are used by commenters of every orientation.
 LEXICON = {
     "left-associated": (
-        r"geflüchtete[nmrs]?",
-        r"schutzsuchende[nmrs]?",
-        r"menschen auf der flucht",
-        r"asyl ist ein grundrecht",
-        r"geistige brandstiftung",
+        "schutzsuchende",
+        "menschen auf der flucht",
+        "geflüchtete",
+        "menschlichkeit",
+        "menschenrechte",
+        "asyl ist ein grundrecht",
+        "hassposter",
+        "geistige brandstiftung",
+        "stammtisch",
     ),
     "right-associated": (
-        r"bahnhofsklatscher(?:n|s)?",
-        r"willkommensklatscher(?:n|s)?",
-        r"asylflut",
-        r"wirtschaftsflüchtling(?:e|en|s)?",
-        r"asylforderer(?:n|s)?",
+        "bahnhofsklatscher",
+        "willkommensklatscher",
+        "asylflut",
+        "wirtschaftsflüchtlinge",
+        "asylforderer",
+        "kontrollverlust",
+        "obergrenze",
+        "fachkräfte",
+        "goldstücke",
+        "kulturbereicherer",
     ),
 }
 PATTERNS = {
     side: re.compile(
         r"\b(?:"
-        + "|".join(f"(?P<term{index}>{term})" for index, term in enumerate(terms))
-        + r")\b",
-        re.IGNORECASE,
+        + "|".join(f"(?P<term{index}>{re.escape(term)})" for index, term in enumerate(terms))
+        + r")\b"
     )
     for side, terms in LEXICON.items()
 }
-AMBIGUOUS = re.compile(
-    r'["„“”«»]|^\s*>|\b(?:nicht|kein(?:e|en|em|er|es)?|ohne)\b', re.IGNORECASE | re.MULTILINE
-)
+# Body text only, as on the main branch; headlines are not classified.
+TEXT_COLUMN = "Body"
 LABELS = ["left-associated", "right-associated", "mixed", "insufficient-evidence"]
 
 
 def classify_vocabulary(text: str) -> str:
-    """Return a vocabulary association, abstaining on empty, tied, or ambiguous text.
+    """Return the side with more distinct matched terms, or unknown on ties and no match.
 
-    Quotation and negation checks deliberately abstain rather than interpreting
-    stance. They do not resolve sarcasm, indirect quotes, or contextual meaning.
+    Negation, quotation, sarcasm, and context are not interpreted.
     """
-    if not isinstance(text, str) or not text.strip() or AMBIGUOUS.search(text):
+    if not isinstance(text, str) or not text.strip():
         return "unknown"
+    lower = text.lower()
     scores = {
-        side: len({match.lastgroup for match in pattern.finditer(text)})
+        side: len({match.lastgroup for match in pattern.finditer(lower)})
         for side, pattern in PATTERNS.items()
     }
     left, right = scores["left-associated"], scores["right-associated"]
@@ -62,14 +71,14 @@ def aggregate_vocabulary(posts: pd.DataFrame, settings: Settings) -> pd.DataFram
     """Retain every user and count the evidence behind each descriptive label.
 
     Args:
-        posts: Enriched posts containing ID_User and text.
+        posts: Enriched posts containing ID_User and Body.
         settings: Minimum evidence and descriptive majority thresholds.
 
     Returns:
         One row per user including total, matched, and directional post counts.
 
     """
-    posts = posts.assign(vocabulary=posts["text"].map(classify_vocabulary))
+    posts = posts.assign(vocabulary=posts[TEXT_COLUMN].map(classify_vocabulary))
     counts = pd.crosstab(posts["ID_User"], posts["vocabulary"]).reindex(
         columns=["left-associated", "right-associated", "unknown"], fill_value=0
     )

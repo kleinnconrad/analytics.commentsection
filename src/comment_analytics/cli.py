@@ -11,6 +11,7 @@ import pandas as pd
 from comment_analytics.benchmark import benchmark
 from comment_analytics.config import FLAGS, Settings
 from comment_analytics.data import export_database, file_hash, provenance, read_corpus, write_json
+from comment_analytics.embeddings import lexicon_candidates, train_embeddings, user_similarity
 from comment_analytics.evaluation import staff_overlap
 from comment_analytics.features import build_features, detect
 from comment_analytics.political import LEXICON, LEXICON_VERSION, aggregate_vocabulary
@@ -43,7 +44,15 @@ def run_pipeline(data_dir: Path, output: Path, settings: Settings) -> None:
     )
     posts, articles = read_corpus(data_dir)
     features, enriched = build_features(posts, articles)
-    users, cutoff = detect(features, settings)
+    LOG.info(
+        "Training Word2Vec on %s comments with %s worker(s)",
+        len(enriched),
+        settings.embedding_workers,
+    )
+    vectors = train_embeddings(enriched["text"], settings)
+    similarity = user_similarity(enriched, vectors)
+    features = features.merge(similarity, on="ID_User", validate="one_to_one")
+    users, cutoffs = detect(features, settings)
     political = aggregate_vocabulary(enriched, settings).drop(columns="total_posts")
     users = users.merge(political, on="ID_User", validate="one_to_one")
     users["writer_group"] = users["flag_any"].map({0: "Unflagged", 1: "Heuristic-flagged"})
@@ -58,7 +67,11 @@ def run_pipeline(data_dir: Path, output: Path, settings: Settings) -> None:
     predictions.to_csv(output / "predictions.csv", index=False)
     write_json(output / "staff_overlap.json", overlap)
     write_reports(users, predictions, output, settings)
-    metadata["impact_cutoff"] = cutoff
+    lexicon_candidates(vectors, settings).to_csv(output / "lexicon_candidates.csv", index=False)
+    if vectors is not None:
+        vectors.save_word2vec_format(str(output / "word2vec.bin"), binary=True)
+    metadata["cutoffs"] = cutoffs
+    metadata["embeddings_deterministic"] = settings.embedding_workers == 1
     metadata["counts"] = {"posts": len(posts), "users": len(users)}
     metadata["outputs"] = {path.name: file_hash(path) for path in sorted(output.iterdir())}
     # Manifest is written last; its presence identifies a completed run.
@@ -80,6 +93,12 @@ def main() -> None:
     run.add_argument("--output", required=True, type=Path)
     run.add_argument("--min-political-posts", type=int, default=Settings.min_political_posts)
     run.add_argument("--political-majority", type=float, default=Settings.political_majority)
+    run.add_argument(
+        "--embedding-workers",
+        type=int,
+        default=Settings.embedding_workers,
+        help="Word2Vec threads; more than 1 is faster but not reproducible",
+    )
     comparison = commands.add_parser("benchmark", help="Compare pinned models on reviewed examples")
     comparison.add_argument("--samples", type=Path, required=True)
     comparison.add_argument("--model", action="append", required=True)
@@ -99,6 +118,7 @@ def main() -> None:
                 Settings(
                     min_political_posts=args.min_political_posts,
                     political_majority=args.political_majority,
+                    embedding_workers=args.embedding_workers,
                 ),
             )
     except (OSError, ValueError, sqlite3.Error, ImportError) as error:

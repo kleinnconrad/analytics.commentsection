@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from comment_analytics.config import Settings
 from comment_analytics.political import LABELS, LEXICON_VERSION
 
+DIRECTIONS = ["left-associated", "right-associated"]
 GROUPS = ["Unflagged", "Heuristic-flagged"]
 
 
@@ -34,7 +35,17 @@ def write_reports(
     table = table.rename("users").reset_index()
     table["group_users"] = table["writer_group"].map(totals)
     table["share"] = table["users"] / table["group_users"].replace(0, np.nan)
+    # Share among left- and right-associated users only, as charted on the main branch.
+    directional = counts[DIRECTIONS].sum(axis=1)
+    table["directional_users"] = table["writer_group"].map(directional)
+    table["directional_share"] = (
+        table["users"] / table["directional_users"].replace(0, np.nan)
+    ).where(table["vocabulary_group"].isin(DIRECTIONS))
     table.to_csv(output / "user_shares.csv", index=False)
+    evidence = (
+        f"At least {settings.min_political_posts} matched "
+        f"comment{'' if settings.min_political_posts == 1 else 's'}"
+    )
 
     fig, ax = plt.subplots(figsize=(11, 6), layout="constrained")
     left = np.zeros(len(GROUPS))
@@ -54,8 +65,7 @@ def write_reports(
     ax.set_xlabel("Share of all users within each flag group (%)")
     ax.set_title(
         "Exploratory vocabulary associations, not inferred ideology\n"
-        f"At least {settings.min_political_posts} matched comments and "
-        f"at least {settings.political_majority * 100:g}% directional agreement"
+        f"{evidence} and at least {settings.political_majority * 100:g}% directional agreement"
     )
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.17), ncols=2, frameon=False)
     fig.savefig(output / "vocabulary_shares.png", dpi=160)
@@ -77,7 +87,7 @@ def write_reports(
     path_counts.to_csv(output / "path_comment_shares.csv", index=False)
 
     sensitivity = []
-    for minimum in sorted({5, 10, 20, settings.min_political_posts}):
+    for minimum in sorted({1, 3, 5, 10, 20, settings.min_political_posts}):
         for majority in sorted({0.6, 0.68, 0.8, settings.political_majority}):
             # Reuse saved directional counts; never reclassify text for each threshold.
             scenario = replace(settings, min_political_posts=minimum, political_majority=majority)
@@ -105,6 +115,17 @@ def write_reports(
             f"| {group} | {len(members):,} | {int(members['total_posts'].sum()):,} | "
             f"{int(members['matched_posts'].sum()):,} |"
         )
+    direction_rows = [
+        f"| {group} | {counts.loc[group, DIRECTIONS[0]]:,} | {counts.loc[group, DIRECTIONS[1]]:,} | "
+        + " | ".join(
+            "n/a"
+            if directional[group] == 0
+            else f"{counts.loc[group, label] / directional[group]:.1%}"
+            for label in DIRECTIONS
+        )
+        + " |"
+        for group in GROUPS
+    ]
     report = f"""# Exploratory comment analysis
 
 ## Contents
@@ -124,12 +145,19 @@ Business hours use timestamps as supplied; no unverified timezone conversion is 
 {chr(10).join(group_rows)}
 
 ## User vocabulary shares
-Lexicon: `{LEXICON_VERSION}`. Directional labels require at least
-{settings.min_political_posts} matched comments and at least
-{settings.political_majority * 100:g}% agreement. These are descriptive thresholds, not significance tests.
-Unknown comments are excluded from directional agreement, but their users remain in chart denominators.
+Lexicon: `{LEXICON_VERSION}`, applied to comment bodies. Directional labels require:
+{evidence.lower()} and at least {settings.political_majority * 100:g}% agreement.
+These are descriptive thresholds, not significance tests. With one matched comment, a single
+word decides a user's label. Unknown comments are excluded from directional agreement, but their
+users remain in chart denominators.
 
 ![Vocabulary shares](vocabulary_shares.png)
+
+Among left- and right-associated users only (the comparison charted on the main branch):
+
+| Flag group | Left-associated | Right-associated | Left share | Right share |
+| --- | ---: | ---: | ---: | ---: |
+{chr(10).join(direction_rows)}
 
 ## Outputs and limitations
 - [User shares](user_shares.csv): counts and denominators for every label, including insufficient evidence.
@@ -138,20 +166,27 @@ Unknown comments are excluded from directional agreement, but their users remain
   Absent rows mean zero observed comments; no share is estimated for an unobserved path/group.
 - [Threshold sensitivity](threshold_sensitivity.csv): directional user counts across several cutoffs.
 - [Staff overlap](staff_overlap.json): overlap only; nonstaff users are not verified negative examples.
+- [Lexicon candidates](lexicon_candidates.csv): Word2Vec nearest neighbours of lexicon terms.
+  They share contexts, often the topic rather than the stance, and require manual review before use.
+- [Word vectors](word2vec.bin): the gensim Word2Vec vectors trained on this corpus (binary word2vec format).
 - [Manifest](manifest.json): input and output hashes, source identity, dependencies, and configuration.
 
 Flags describe behavior, not employment, coordination, deception, or astroturfing.
 The lexicon is not validated for stance, sarcasm, or ideological identity. Quote and negation
 abstention is conservative but incomplete. Selection and activity differences confound group comparisons.
 There is no held-out political accuracy estimate and no justified population confidence interval.
-NLP model scores are not used to flag users. Exact text repetition is not proof of copy-pasted propaganda.
+No pretrained model is used. Word2Vec is trained on the analysed comments, so similarity reflects
+this corpus only. High comment similarity can come from copied text, templates, or a narrow topic;
+it is not proof of copy-pasted propaganda.
 
 ## Configuration
 | Setting | Value |
 | --- | ---: |
 {settings_table}
 
-Impact uses the eligible-user quantile and strictly greater scores; cutoff ties are excluded.
+Similarity and impact use the eligible-user quantile and strictly greater scores; cutoff ties
+are excluded. Similarity is the mean pairwise cosine similarity of a user's comment vectors
+(averaged unit word vectors with the corpus mean removed), rounded to six decimals.
 Missing measurements are unavailable, not zero. Negative publication delays are excluded,
 and affected users cannot satisfy the temporal flag.
 """

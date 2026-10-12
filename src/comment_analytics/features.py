@@ -73,12 +73,26 @@ def build_features(
     return users.reset_index(), merged
 
 
-def detect(users: pd.DataFrame, settings: Settings) -> tuple[pd.DataFrame, float | None]:
-    """Apply descriptive rules and return the eligible-user impact cutoff.
+def quantile_cutoff(values: pd.Series, quantile: float) -> float | None:
+    """Return a quantile of the measured values, or None when nothing is measured."""
+    cutoff = values.quantile(quantile)
+    return None if pd.isna(cutoff) else float(cutoff)
 
-    Impact requires a score strictly above the quantile, so ties at the cutoff
-    are excluded and an all-zero distribution flags nobody. Missing features
-    never satisfy a rule. The four rules are combined with OR, not a probability.
+
+def detect(users: pd.DataFrame, settings: Settings) -> tuple[pd.DataFrame, dict[str, float | None]]:
+    """Apply descriptive rules and return the eligible-user similarity and impact cutoffs.
+
+    Similarity and impact require a score strictly above the quantile, so ties at
+    the cutoff are excluded and a constant distribution flags nobody. Missing
+    features never satisfy a rule. The four rules are combined with OR, not a probability.
+
+    Args:
+        users: User features including semantic_similarity and similarity_posts.
+        settings: Flag thresholds.
+
+    Returns:
+        Users with flag columns, and the cutoffs keyed by "similarity" and "impact".
+
     """
     users = users.copy()
     eligible = users["total_posts"] >= settings.min_posts
@@ -93,12 +107,21 @@ def detect(users: pd.DataFrame, settings: Settings) -> tuple[pd.DataFrame, float
         & (users["topic_posts"] == users["total_posts"])
         & (users["topic_entropy"] <= settings.max_topic_entropy)
     )
-    users["flag_repetition"] = (users["text_posts"] >= settings.min_posts) & (
-        users["duplicate_share"] >= settings.duplicate_share
+    similar = eligible & (users["similarity_posts"] >= settings.min_posts)
+    cutoffs = {
+        "similarity": quantile_cutoff(
+            users.loc[similar, "semantic_similarity"], settings.similarity_quantile
+        ),
+        "impact": quantile_cutoff(users.loc[eligible, "avg_controversy"], settings.impact_quantile),
+    }
+    users["flag_similarity"] = similar & (
+        users["semantic_similarity"]
+        > (np.inf if cutoffs["similarity"] is None else cutoffs["similarity"])
     )
-    cutoff = users.loc[eligible, "avg_controversy"].quantile(settings.impact_quantile)
-    users["flag_impact"] = (users["avg_controversy"] > cutoff) & (users["avg_controversy"] > 0)
+    users["flag_impact"] = (
+        users["avg_controversy"] > (np.inf if cutoffs["impact"] is None else cutoffs["impact"])
+    ) & (users["avg_controversy"] > 0)
     for flag in FLAGS:
         users[flag] = (users[flag] & eligible).astype(int)
     users["flag_any"] = users[FLAGS].max(axis=1)
-    return users, None if pd.isna(cutoff) else float(cutoff)
+    return users, cutoffs

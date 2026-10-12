@@ -56,8 +56,15 @@ def test_sqlite_to_report_from_unrelated_working_directory(
         assert unflagged.loc["insufficient-evidence", "share"] == 1
         assert shares.loc[shares["writer_group"] == "Heuristic-flagged", "share"].isna().all()
     else:
-        assert unflagged.loc["right-associated", "share"] == 0.25
-        assert unflagged.loc["insufficient-evidence", "share"] == 0.5
+        # User 1 writes only headlines and is flagged; bodies decide labels.
+        assert unflagged["share"].to_dict() == {
+            "left-associated": 0.25,
+            "right-associated": 0.25,
+            "mixed": 0.25,
+            "insufficient-evidence": 0.25,
+        }
+        assert unflagged.loc["left-associated", "directional_share"] == 0.5
+        assert pd.isna(unflagged.loc["mixed", "directional_share"])
         assert unflagged.loc["mixed", "users"] == 1
     paths = pd.read_csv(output / "path_comment_shares.csv")
     assert paths["comments"].sum() == len(posts)
@@ -66,12 +73,28 @@ def test_sqlite_to_report_from_unrelated_working_directory(
     manifest = json.loads((output / "manifest.json").read_text())
     assert manifest["counts"] == {"posts": len(posts), "users": posts["ID_User"].nunique()}
     assert manifest["configuration"]["models"] == []
+    assert manifest["embeddings_deterministic"] is True
+    assert set(manifest["cutoffs"]) == {"similarity", "impact"}
+    users = pd.read_csv(output / "users.csv")
+    assert {"semantic_similarity", "similarity_posts", "flag_similarity"} <= set(users.columns)
+    # No fixture word reaches the default minimum count of 20, so no candidates are proposed.
+    candidates = pd.read_csv(output / "lexicon_candidates.csv")
+    assert candidates.empty
+    assert "margin" in candidates.columns
+    if empty_group:
+        # Only empty comments: no vocabulary, so no model and no similarity.
+        assert not (output / "word2vec.bin").exists()
+        assert users["semantic_similarity"].isna().all()
+    else:
+        assert (output / "word2vec.bin").stat().st_size > 0
     for name, digest in manifest["outputs"].items():
         assert file_hash(output / name) == digest
     assert manifest["inputs"][str(data / "Posts.csv")] == file_hash(data / "Posts.csv")
     assert (output / "vocabulary_shares.png").read_bytes().startswith(b"\x89PNG")
-    assert "10 matched comments" in (output / "report.md").read_text()
-    assert "68%" in (output / "report.md").read_text()
+    report = (output / "report.md").read_text(encoding="utf-8")
+    assert "at least 1 matched comment and at least 68% agreement" in report
+    if not empty_group:
+        assert "| Unflagged | 1 | 1 | 50.0% | 50.0% |" in report
     refused = run_cli(cwd, "run", "--data-dir", str(data), "--output", str(output))
     assert refused.returncode != 0
     assert "not empty" in refused.stderr

@@ -9,6 +9,7 @@ description = "Exploratory analysis of the German One Million Posts Corpus"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
+    "gensim>=4.4,<5",
     "matplotlib>=3.9,<4",
     "numpy>=1.26,<3",
     "pandas>=2.2,<4",

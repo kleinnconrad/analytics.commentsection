@@ -157,7 +157,14 @@ def provenance(inputs: list[Path], configuration: dict[str, Any]) -> dict[str, A
         "configuration": configuration,
         "packages": {
             name: version(name)
-            for name in ("comment-section-analytics", "pandas", "numpy", "scipy", "matplotlib")
+            for name in (
+                "comment-section-analytics",
+                "pandas",
+                "numpy",
+                "scipy",
+                "matplotlib",
+                "gensim",
+            )
         },
     }
 
