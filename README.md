@@ -27,6 +27,7 @@ Use Python 3.11, 3.12, or 3.13 and [uv](https://docs.astral.sh/uv/getting-starte
 uv sync --locked --python 3.12
 uv run --locked comment-analytics export --database db/corpus.sqlite3 --output data/corpus
 uv run --locked comment-analytics run --data-dir data/corpus --output results/runs/baseline
+uv run --locked comment-analytics publish --run results/runs/baseline --output results/prof_writing_analytics
 ```
 
 The installed `comment-analytics` command works outside the repository too. Paths are explicit, so use absolute paths when invoking it from another directory. Export and analysis destinations must be new or empty; existing runs are never overwritten. The SQLite database is opened read-only and exported in chunks. Analysis loads the post and article tables into memory. On the full corpus (1,011,773 posts, Windows 11, Python 3.11), export took 13 s; analysis took 16 minutes with a peak working set of 3.2 GB, of which Word2Vec training on one thread took 14 minutes. `--embedding-workers 4` reduced the run to 7 minutes but makes the vectors and similarity flags differ between runs.
@@ -98,7 +99,7 @@ Each completed run contains:
 
 The manifest is written last; an output directory without it is incomplete. A dirty checkout is recorded explicitly, with source hashes to identify its code. No pretrained models participate in the default analysis; the Word2Vec vectors are trained on the input and saved with the run.
 
-User charts include insufficient-evidence users in their denominators. Path shares count all comments by users with a given vocabulary label, including nonpolitical comments, and are weighted by activity. They are not targeting estimates. Neither population confidence intervals nor political accuracy estimates are justified without an appropriate sampling and labelling study. Existing files under [results/prof_writing_analytics](results/prof_writing_analytics/README.md) are historical, unvalidated outputs, not results of this pipeline.
+User charts include insufficient-evidence users in their denominators. Path shares count all comments by users with a given vocabulary label, including nonpolitical comments, and are weighted by activity. They are not targeting estimates. Neither population confidence intervals nor political accuracy estimates are justified without an appropriate sampling and labelling study. [results/prof_writing_analytics](results/prof_writing_analytics/README.md) contains the committed political comparison charts and pages. `publish` regenerates them from a completed run and overwrites only the files it writes; the pages record the run, manifest hash, and Git revision they come from. Run directories under `results/runs/` are not committed.
 
 ## Model evaluation
 

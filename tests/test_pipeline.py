@@ -95,6 +95,23 @@ def test_sqlite_to_report_from_unrelated_working_directory(
     assert "at least 1 matched comment and at least 68% agreement" in report
     if not empty_group:
         assert "| Unflagged | 1 | 1 | 50.0% | 50.0% |" in report
+    published = tmp_path / "published"
+    result = run_cli(cwd, "publish", "--run", str(output), "--output", str(published))
+    assert result.returncode == 0, result.stderr
+    readme = (published / "README.md").read_text(encoding="utf-8")
+    assert "at least 1 directional comment and at least 68% agreement" in readme
+    timeline = (published / "political_timeline_normal.md").read_text(encoding="utf-8")
+    if empty_group:
+        assert "| Unflagged | 1 | 0 | 0 | n/a | n/a |" in readme
+        assert not list(published.glob("political_spectrum_targets_*.png"))
+        assert "Directional users: **0**" in timeline
+    else:
+        assert "| Unflagged | 4 | 1 | 1 | 50.0% | 50.0% |" in readme
+        # The fixture only has 2015 posts; no 2016 chart is written.
+        assert (published / "political_spectrum_targets_normal_2015.png").exists()
+        assert not (published / "political_spectrum_targets_normal_2016.png").exists()
+        assert "![2015](political_spectrum_targets_normal_2015.png)" in timeline
+    assert (published / "ideological_share_comparison.png").read_bytes().startswith(b"\x89PNG")
     refused = run_cli(cwd, "run", "--data-dir", str(data), "--output", str(output))
     assert refused.returncode != 0
     assert "not empty" in refused.stderr
