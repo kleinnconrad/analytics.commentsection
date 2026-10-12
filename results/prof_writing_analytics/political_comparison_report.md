@@ -1,11 +1,14 @@
-# Political Intent: Astroturfers vs Normal Users
+# Historical group comparison: unvalidated
 
-These reports directly compare the ideological consistency and exact targets of Professional Writers against normal users.
+## Contents
+- [Warning](#warning)
+- [Original images](#original-images)
 
-## 1. Overall Ideological Share (Left vs Right)
-This chart displays the percentage breakdown of ideological leanings across highly partisan users (>80% consistency).
-![Ideological Share Comparison](./ideological_share_comparison.png)
+## Warning
 
-## 2. Ideological Share by Specific Political Path
-For the top 10 most targeted newspaper categories, this chart breaks down the ideological proportion of the comments. It directly contrasts the behavior of normal users on those topics versus the professional astroturfers.
-![Ideological Path Comparison](./ideological_path_comparison.png)
+These original images are retained for historical reference only. Their user labels and political interpretations are not validated. They are not outputs of the corrected pipeline. See [the historical-results notice](README.md) and [current methodology](../../README.md).
+
+## Original images
+
+![Historical user share comparison; unsupported labels](ideological_share_comparison.png)
+![Historical path comparison; unsupported labels](ideological_path_comparison.png)

@@ -1,6 +1,14 @@
-# Political Spectrum Targets By Year (NORMAL USERS)
+# Historical unflagged-user timeline: unvalidated
 
-Total Users Classified: **1,963**
+## Contents
+- [Warning](#warning)
+- [Total Dataset](#total-dataset)
+- [2015](#2015)
+- [2016](#2016)
+
+## Warning
+
+Original reported count: **1,963** users. This count and the labels in the images are unvalidated historical outputs, not current findings. See [the historical-results notice](README.md).
 
 ## Total Dataset
 ![Total](./political_spectrum_targets_normal_total.png)
@@ -10,4 +18,3 @@ Total Users Classified: **1,963**
 
 ## 2016
 ![2016](./political_spectrum_targets_normal_2016.png)
-

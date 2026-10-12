@@ -1,0 +1,83 @@
+name: Pre-merge
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-merge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lock, lint, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.12.9"
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv lock --check
+      - run: uv sync --locked
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: uv build
+      - name: Validate workflow syntax and expressions
+        run: uv run --locked actionlint
+
+  tests:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.12.9"
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - name: Install the package as a wheel, not an editable source checkout
+        run: uv sync --locked --no-editable
+      - name: Regression and SQLite-to-report integration tests
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          MPLBACKEND: Agg
+        run: uv run --locked --no-editable pytest --junitxml=test-results.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.python }}
+          path: test-results.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  gate:
+    name: Pre-merge gate
+    needs: [quality, tests]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every upstream check to succeed
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          TESTS: ${{ needs.tests.result }}
+        run: test "$QUALITY" = success && test "$TESTS" = success

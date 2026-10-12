@@ -15,6 +15,12 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+.amp/in/
+results/runs/
 
 # IDEs and OS files
 .vscode/
