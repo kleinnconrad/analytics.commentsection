@@ -15,6 +15,7 @@ from comment_analytics.embeddings import lexicon_candidates, train_embeddings, u
 from comment_analytics.evaluation import staff_overlap
 from comment_analytics.features import build_features, detect
 from comment_analytics.political import LEXICON, LEXICON_VERSION, aggregate_vocabulary
+from comment_analytics.publish import publish
 from comment_analytics.reporting import write_reports
 
 LOG = logging.getLogger(__name__)
@@ -99,6 +100,11 @@ def main() -> None:
         default=Settings.embedding_workers,
         help="Word2Vec threads; more than 1 is faster but not reproducible",
     )
+    published = commands.add_parser(
+        "publish", help="Overwrite the political comparison charts and pages from a completed run"
+    )
+    published.add_argument("--run", required=True, type=Path)
+    published.add_argument("--output", required=True, type=Path)
     comparison = commands.add_parser("benchmark", help="Compare pinned models on reviewed examples")
     comparison.add_argument("--samples", type=Path, required=True)
     comparison.add_argument("--model", action="append", required=True)
@@ -109,6 +115,8 @@ def main() -> None:
     try:
         if args.command == "export":
             export_database(args.database, args.output)
+        elif args.command == "publish":
+            publish(args.run, args.output)
         elif args.command == "benchmark":
             benchmark(args.samples, args.model, args.task, args.output)
         else:

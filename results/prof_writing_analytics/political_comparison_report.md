@@ -1,14 +1,17 @@
-# Historical group comparison: unvalidated
+# Political vocabulary: flagged and unflagged users
 
 ## Contents
-- [Warning](#warning)
-- [Original images](#original-images)
+- [Share of left and right users](#share-of-left-and-right-users)
+- [Share by path](#share-by-path)
 
-## Warning
+Run `main-lexicon-2026-10-12`, manifest SHA-256 `21374e6aef40`, Git revision `eef4a8db217f` (uncommitted changes), lexicon `main-crisis-v1`.
 
-These original images are retained for historical reference only. Their user labels and political interpretations are not validated. They are not outputs of the corrected pipeline. See [the historical-results notice](README.md) and [current methodology](../../README.md).
+## Share of left and right users
+Left- and right-associated users within each flag group (at least 1 directional comment and at least 68% agreement).
 
-## Original images
+![Share comparison](ideological_share_comparison.png)
 
-![Historical user share comparison; unsupported labels](ideological_share_comparison.png)
-![Historical path comparison; unsupported labels](ideological_path_comparison.png)
+## Share by path
+Left/right share of all comments by directional users on the 10 paths with the most such comments.
+
+![Path comparison](ideological_path_comparison.png)
