@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-nlp = ["sentence-transformers>=3.4,<6", "transformers>=4.48,<5", "torch>=2.6,<3"]
+nlp = ["sentence-transformers>=3.4,<6", "transformers>=4.48,<6", "torch>=2.6,<3"]
 
 [tool.uv]
 cache-keys = [{ file = "pyproject.toml" }, { file = "README.md" }, { file = "src/**/*.py" }]
